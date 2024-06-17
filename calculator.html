@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>401(k) Calculator</title>
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="mt-5">401(k) Calculator</h1>
+        <form>
+            <div class="form-group">
+                <label for="salaryType">Choose Salary Type:</label>
+                <select class="form-control" id="salaryType" onchange="toggleSalaryInput()">
+                    <option value="annual">Annual Salary ($)</option>
+                    <option value="perPayPeriod">Salary per Pay Period ($)</option>
+                </select>
+            </div>
+            <div class="form-group" id="annualSalaryGroup">
+                <label for="annualSalary">Annual Salary ($):</label>
+                <input type="number" class="form-control" id="annualSalary">
+            </div>
+            <div class="form-group" id="perPayPeriodSalaryGroup" style="display:none;">
+                <label for="perPayPeriodSalary">Salary per Pay Period ($):</label>
+                <input type="number" class="form-control" id="perPayPeriodSalary">
+            </div>
+            <div class="form-group">
+                <label for="lastPaycheckDate">Date of Last Pay Period End:</label>
+                <input type="date" class="form-control" id="lastPaycheckDate">
+            </div>
+            <div class="form-group">
+                <label for="employerMatchPercent">Employer Match Percentage (%):</label>
+                <input type="number" class="form-control" id="employerMatchPercent" value="100">
+            </div>
+            <div class="form-group">
+                <label for="employerMatchLimit">Employer Match Limit (% of Salary):</label>
+                <input type="number" class="form-control" id="employerMatchLimit" value="6">
+            </div>
+            <div class="form-group">
+                <label>IRS Contribution Limit:</label>
+                <p class="form-control-static">$23,000</p>
+            </div>
+            <button type="button" class="btn btn-primary" onclick="calculate()">Calculate</button>
+        </form>
+
+        <h2 class="mt-4">Results:</h2>
+        <p id="result"></p>
+        <p id="error" class="text-danger"></p>
+    </div>
+
+    <script>
+        function toggleSalaryInput() {
+            let salaryType = document.getElementById('salaryType').value;
+            if (salaryType === 'annual') {
+                document.getElementById('annualSalaryGroup').style.display = 'block';
+                document.getElementById('perPayPeriodSalaryGroup').style.display = 'none';
+            } else if (salaryType === 'perPayPeriod') {
+                document.getElementById('annualSalaryGroup').style.display = 'none';
+                document.getElementById('perPayPeriodSalaryGroup').style.display = 'block';
+            }
+        }
+
+        function calculate() {
+            // Clear previous results and errors
+            document.getElementById('result').innerHTML = '';
+            document.getElementById('error').innerHTML = '';
+
+            // Get input values
+            let salaryType = document.getElementById('salaryType').value;
+            let salary = 0;
+
+            if (salaryType === 'annual') {
+                salary = parseFloat(document.getElementById('annualSalary').value);
+            } else if (salaryType === 'perPayPeriod') {
+                let perPayPeriodSalary = parseFloat(document.getElementById('perPayPeriodSalary').value);
+                salary = perPayPeriodSalary * 26; // Assuming 26 pay periods in a year
+            }
+
+            let lastPaycheckDate = new Date(document.getElementById('lastPaycheckDate').value);
+            let employerMatchPercent = parseFloat(document.getElementById('employerMatchPercent').value);
+            let employerMatchLimit = parseFloat(document.getElementById('employerMatchLimit').value);
+
+            // Validate inputs
+            if (isNaN(salary) || isNaN(employerMatchPercent) || isNaN(employerMatchLimit) || lastPaycheckDate == 'Invalid Date') {
+                document.getElementById('error').innerHTML = 'Please enter valid numbers for all fields.';
+                return;
+            }
+
+            if (salary <= 0 || employerMatchPercent <= 0 || employerMatchLimit <= 0) {
+                document.getElementById('error').innerHTML = 'All values must be greater than zero.';
+                return;
+            }
+
+            // Calculate today's date
+            let today = new Date();
+            
+            // Calculate remaining pay periods until end of year
+            let currentYear = today.getFullYear();
+            let lastPaycheckYear = lastPaycheckDate.getFullYear();
+            let remainingPayPeriods = 0;
+
+            if (lastPaycheckYear === currentYear) {
+                // If the last paycheck is in the current year
+                const totalPayPeriods = 26; // Fixed total pay periods in a year
+                let totalElapsedPeriods = (lastPaycheckDate.getMonth() + 1) / (12 / totalPayPeriods);
+                remainingPayPeriods = Math.ceil(totalPayPeriods - totalElapsedPeriods);
+            } else if (lastPaycheckYear > currentYear) {
+                // If the last paycheck is in a future year (shouldn't happen in practical scenarios)
+                document.getElementById('error').innerHTML = 'Invalid date of last pay period.';
+                return;
+            } else {
+                // If the last paycheck is in a past year (shouldn't happen in practical scenarios)
+                document.getElementById('error').innerHTML = 'Invalid date of last pay period.';
+                return;
+            }
+
+            // Ensure there is at least one remaining pay period
+            if (remainingPayPeriods < 1) {
+                remainingPayPeriods = 1;
+            }
+
+            // Fixed variables
+            const contributionLimit = 23000; // IRS Contribution Limit
+
+            // Calculate per paycheck contribution to max out IRS limit within the remaining pay periods
+            let perPaycheckContribution = contributionLimit / remainingPayPeriods;
+
+            // Calculate paycheck amount
+            let paycheckAmount = salary / 26; // Assuming 26 pay periods in a year
+            let maxEmployerMatchPerPaycheck = (employerMatchLimit / 100) * paycheckAmount;
+            let actualEmployerMatchPerPaycheck = (employerMatchPercent / 100) * perPaycheckContribution;
+            let employerMatchPerPaycheck = Math.min(maxEmployerMatchPerPaycheck, actualEmployerMatchPerPaycheck);
+
+            // Calculate required contribution percentage
+            let contributionPercentage = (perPaycheckContribution / paycheckAmount) * 100;
+
+            // Display results
+            document.getElementById('result').innerHTML = `
+                To max out your contributions within the remaining ${remainingPayPeriods} pay periods, you should set your contribution rate to approximately <strong>${contributionPercentage.toFixed(2)}%</strong> of each paycheck.<br>
+                This ensures you will contribute $${perPaycheckContribution.toFixed(2)} per paycheck, hitting the IRS limit of $${contributionLimit.toFixed(2)}.<br>
+                Additionally, you will receive an employer match of $${employerMatchPerPaycheck.toFixed(2)} per paycheck.
+            `;
+        }
+    </script>
+</body>
+</html>
